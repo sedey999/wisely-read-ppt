@@ -39,17 +39,84 @@ license: Proprietary
 
 ## 环境依赖
 
-**PPT 输入必须有 LibreOffice 渲染器,PDF 输入不需要。**
+**PDF 输入**只需 poppler（pdftoppm），无需渲染器。**PPT 输入**需要渲染器把 PPTX 转为 PDF，按以下流程检测和配置。
 
-快速检测:
+### PPT 渲染器检测流程
+
+> 检测结果记录到 `local-env.json`（见「本地环境配置」章节），下次直接读取配置跳过检测。
+
+**阶段 1：检测已有渲染器**
+
+Windows：
+1. 检测 WPS（`pywin32` + COM `Kwpp.Application`）+ 有头环境 -> COM 转换 PPTX 为 PDF，结束
+2. 检测 LibreOffice（`soffice`）-> 无头转换，结束
+3. 都没有 -> 进入阶段 2
+
+Linux：
+1. 检测 LibreOffice（`which soffice`）-> 无头转换，结束
+2. 没有 LibreOffice -> 进入阶段 2（不管是否已有 WPS，都优先安装 LibreOffice）
+
+Mac / 其他：
+1. 检测 LibreOffice（`which soffice`）-> 无头转换，结束
+2. 没有 -> 进入阶段 2
+
+**阶段 2：自动安装 LibreOffice**
+
 ```bash
-which pdftoppm    # PDF 必需
-which soffice     # PPT 必需
+# Ubuntu / Debian
+apt install libreoffice-core libreoffice-impress poppler-utils
+# CentOS / RHEL
+dnf install libreoffice poppler-utils
+# macOS
+brew install libreoffice poppler
 ```
 
-如果缺 LibreOffice,按系统安装(Ubuntu: `apt install libreoffice-core libreoffice-impress poppler-utils`,CentOS: `dnf install libreoffice poppler-utils`)。
+- 安装成功 -> 记录配置，无头转换，结束
+- 安装失败 -> 进入阶段 3
 
-Python 依赖由脚本自动安装,也可手动:
+**阶段 3：WPS 兜底（仅 Linux）**
+
+> pywpsrpc 需要 WPS Office for Linux 11.1.0.9080+ 和有头环境（X 桌面），无头环境跳过。
+
+- Linux + 有 WPS（`which wpp` 或 `which wps`）+ 有头环境 -> `pip install pywpsrpc`，RPC 转换 PPTX 为 PDF
+  - 转换失败 / pywpsrpc 安装失败 -> 进入阶段 4
+- Linux + 无 WPS / 无头环境 -> 进入阶段 4
+- Windows / Mac -> 进入阶段 4
+
+**阶段 4：用户问询**
+
+- 有头环境 -> 问用户能否安装 WPS，或直接提供 PDF 版本
+  - 用户同意安装 WPS -> 安装后回到阶段 1（Windows）或阶段 3（Linux）
+  - 用户拒绝 -> 请用户提供 PDF
+- 无头环境 -> 请用户提供 PDF
+- 所有「请用户提供 PDF」的情况 -> 记录配置（标注本地限制），下次不重复尝试
+
+### 本地环境配置
+
+首次检测完成后，将结果写入 `local-env.json`（位于 skill 目录下）：
+
+```json
+{
+  "platform": "linux",
+  "hasDisplay": true,
+  "renderer": "libreoffice",
+  "sofficePath": "/usr/bin/soffice",
+  "wpsAvailable": false,
+  "notes": ""
+}
+```
+
+- `renderer`：`"libreoffice"` / `"wps-com"` / `"wps-rpc"` / `"user-pdf"`（用户自行提供 PDF）
+- `notes`：记录限制说明，如「LibreOffice 安装失败，用户拒绝安装 WPS，需提供 PDF」
+- 后续运行时优先读取此配置，跳过检测流程；配置不存在或为空时才执行检测
+
+### PDF 输入依赖
+
+```bash
+which pdftoppm    # PDF 必需
+```
+
+Python 依赖由脚本自动安装，也可手动：
 ```bash
 pip install python-pptx pdfplumber pymupdf python-docx Pillow pytesseract
 ```
@@ -60,9 +127,11 @@ pip install python-pptx pdfplumber pymupdf python-docx Pillow pytesseract
 
 | 输入 | 处理 |
 |------|------|
-| 仅 .pptx | 必须有 LibreOffice;渲染截图 + python-pptx 提取文字/图片 |
-| 仅 .pdf | 无需 LibreOffice;pdftoppm/pymupdf 转图 + 文字提取 |
+| 仅 .pptx | 按渲染器检测流程获取渲染器；渲染截图 + python-pptx 提取文字/图片 |
+| 仅 .pdf | 无需渲染器；pdftoppm/pymupdf 转图 + 文字提取 |
 | 两者都有 | 按"来源文件"分节,各自逐页解析 |
+
+> 如果 `local-env.json` 中 `renderer` 为 `"user-pdf"`，则仅接受 PDF 输入，PPT 输入时提示用户先自行导出 PDF。
 
 ---
 

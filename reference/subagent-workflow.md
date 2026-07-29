@@ -29,15 +29,15 @@
 
 ### 1.2 系统依赖
 
-- PDF 输入：无需 LibreOffice，有 poppler(pdftoppm）即可
-- PPT 输入：必须有 LibreOffice 渲染器（soffice)
+- PDF 输入：无需渲染器，有 poppler（pdftoppm）即可
+- PPT 输入：需要渲染器将 PPTX 转为 PDF，检测流程见 SKILL.md「环境依赖」章节
 
 ```bash
 which pdftoppm      # PDF 必需
-which soffice       # PPT 必需
+which soffice       # LibreOffice 检测
 ```
 
-PPT 输入但无 soffice 时，停止并回报主代理。
+PPT 输入但无可用渲染器时，停止并回报主代理。
 
 ### 1.3 工作目录
 
