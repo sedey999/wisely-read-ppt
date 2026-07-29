@@ -67,9 +67,22 @@ Mac / 其他：
 apt install libreoffice-core libreoffice-impress poppler-utils
 # CentOS / RHEL
 dnf install libreoffice poppler-utils
-# macOS
-brew install libreoffice poppler
+# macOS（方案 A：Homebrew）
+brew install --cask libreoffice
+brew install poppler  # 可选，缺失时 fallback 到 pymupdf
 ```
+
+macOS 无 Homebrew 或 sudo 被拒时，使用无 sudo 方案（详见 `reference/macos-install.md`）：
+
+```bash
+# 简要步骤（完整指南见 reference/macos-install.md）
+curl -L -o ~/Downloads/LibreOffice.dmg <官方下载链接>  # 按 CPU 架构选择
+hdiutil attach ~/Downloads/LibreOffice.dmg -nobrowse
+cp -R "/Volumes/LibreOffice/LibreOffice.app" ~/Applications/
+ln -sf ~/Applications/LibreOffice.app/Contents/MacOS/soffice ~/.local/bin/soffice
+```
+
+> macOS 安装后 `soffice` 可能不在 PATH 中，需软链接到 `~/.local/bin` 或 `/usr/local/bin`。详见 `reference/macos-install.md`。
 
 - 安装成功 -> 记录配置，无头转换，结束
 - 安装失败 -> 进入阶段 3
@@ -113,8 +126,10 @@ brew install libreoffice poppler
 ### PDF 输入依赖
 
 ```bash
-which pdftoppm    # PDF 必需
+which pdftoppm    # 首选，缺失时 fallback 到 pymupdf
 ```
+
+> poppler（pdftoppm）为首选 PDF 渲染器。未安装时 parse.py 自动 fallback 到 pymupdf，功能等价。
 
 Python 依赖由脚本自动安装，也可手动：
 ```bash

@@ -29,11 +29,11 @@
 
 ### 1.2 系统依赖
 
-- PDF 输入：无需渲染器，有 poppler（pdftoppm）即可
+- PDF 输入：无需渲染器，poppler（pdftoppm）为首选，缺失时 fallback 到 pymupdf
 - PPT 输入：需要渲染器将 PPTX 转为 PDF，检测流程见 SKILL.md「环境依赖」章节
 
 ```bash
-which pdftoppm      # PDF 必需
+which pdftoppm      # 首选，缺失时 fallback 到 pymupdf
 which soffice       # LibreOffice 检测
 ```
 
