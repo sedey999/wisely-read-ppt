@@ -47,7 +47,7 @@ which pdftoppm    # PDF 必需
 which soffice     # PPT 必需
 ```
 
-如果缺 LibreOffice,按系统安装(Ubuntu: `apt install libreoffice-core libreoffice-impress poppler-utils`,CentOS: `dnf install libreoffice poppler-utils`)。无 root 权限时,请用户将 PPT 导出为 PDF。
+如果缺 LibreOffice,按系统安装(Ubuntu: `apt install libreoffice-core libreoffice-impress poppler-utils`,CentOS: `dnf install libreoffice poppler-utils`)。
 
 Python 依赖由脚本自动安装,也可手动:
 ```bash
@@ -78,7 +78,7 @@ pip install python-pptx pdfplumber pymupdf python-docx Pillow pytesseract
 1. 运行 `parse.py` 提取素材（默认 150 DPI）
 2. 逐页 `read` 整页截图校准文字、`read` extracted_pics 原图识别信息图
 3. 遇到矢量脑图/架构图/密集文字页，默认截图模糊看不清时，重新运行 `parse.py --dpi 300` 生成高分辨率整页截图再识别（按「高 DPI 重渲染规则」执行）
-4. 逐页自检复核（抱着"大概率有遗漏/错误"的纠错心态逐页检查）
+4. 逐页自检复核（抱着"大概率有遗漏/错误"的纠错心态逐页检查），检查出的问题罗列为**待改清单**，逐项通过 `read` 图片核对修正（可能需要 read extracted_pics 原图或重新生成高 DPI 截图），确认全部完成后保存
 5. 保存到 `ppt-parse-final/`
 6. **交付与汇报**（见下方"交付与汇报"章节）
 
@@ -137,7 +137,7 @@ sessions_spawn(
 9. 逐项完成待改清单中的修正——每项修正都必须通过 `read` 对应页面的图片来核对：可能需要 read `extracted_pics` 原图核对细节，或重新运行 `parse.py --dpi 300` 生成高分辨率截图再识别，确保修正内容准确无误
 10. 确认待改清单全部完成后，保存到 `ppt-parse-final/`
 
-> 交付检查点：如果没有完成全页复核且待改清单全部修正，绝对不能交付文件。
+> 交付检查点：必须完成全页复核且待改清单全部修正，否则不能交付文件。
 
 ---
 
@@ -301,7 +301,6 @@ python <skill目录>/scripts/parse.py <input.pptx|input.pdf> [more files...] \
 | `--assets-dir` | 素材输出目录(默认:输出文件名_assets) |
 | `--keep` | 保留中间临时文件 |
 | `--no-install` | 不自动安装 Python 依赖 |
-| `--allow-no-renderer` | 允许无 LibreOffice 时继续(仅提取文字和图片,无截图) |
 
 ### 高 DPI 重渲染规则（当整页截图看不清时）
 
