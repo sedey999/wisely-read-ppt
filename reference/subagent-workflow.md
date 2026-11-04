@@ -4,16 +4,16 @@
 >
 > **禁止自复核、禁止声称“已复核”。复核由主代理负责。**
 
-> ⚠️ **维护提醒：本文件的标记符号系统、输出模板与 SKILL.md 中各有一份完整副本。修改任一处时，必须同步更新另一处。**
+> ⚠️ **维护提醒：本文件的标记符号系统、输出模板、目录规则与双版本规则与 SKILL.md 中各有一份完整副本。修改任一处时，必须同步更新另一处。**
 
 ---
 
 ## 0. 你收到的任务
 
 主代理会在任务消息中提供：
-- 输入文件路径（.pptx 或 .pdf)
+- 输入文件路径（.pptx / .pdf）
 - 任务名（taskName)
-- 输出根目录：`<工作区>/ppt-parse-working/`
+- 输出根目录：`<过程目录>/ppt-parse-working/`
 - skill 脚本路径：`scripts/parse.py`
 - reference 手册路径（即本文件）
 
@@ -39,11 +39,12 @@ which soffice       # LibreOffice 检测
 
 PPT 输入但无可用渲染器时，停止并回报主代理。
 
-### 1.3 工作目录
+### 1.3 工作目录（先做目录判定）
 
-```
-<工作区>/ppt-parse-working/<任务名>/
-```
+先确认沙箱是否存在名为 `workspace` 的目录（产物目录）：
+
+- **存在**：所有过程文件（初稿、素材、截图、日志）写到与 `workspace` 同级的 `temp`（优先 `.temp`，其次 `temp`），例如 `/root/.temp/ppt-parse-working/<任务名>/`。**禁止写入 `workspace`**；只有最终交付的两个 docx 由主代理复制过去。
+- **不存在**：`<工作区>/ppt-parse-working/<任务名>/`。
 
 ---
 
@@ -53,15 +54,18 @@ PPT 输入但无可用渲染器时，停止并回报主代理。
 
 ```bash
 python <skill_scripts_dir>/parse.py <输入文件路径> \
-  --out "<工作区>/ppt-parse-working/<任务名>/初稿_<文件名>.docx" \
+  --out "<过程目录>/ppt-parse-working/<任务名>/初稿_<文件名>.docx" \
   --keep
 ```
 
 确认产出：
 - `初稿_<文件名>.docx`
+- `初稿_<文件名>_无图.docx`（脚本自动生成）
 - `初稿_<文件名>_assets/<源文件名>/extracted_text.json`
 - `初稿_<文件名>_assets/<源文件名>/page_NN.png`
 - `初稿_<文件名>_assets/<源文件名>/extracted_pics/`
+
+> 若 `--out` 误落在 `workspace` 内，`parse.py` 会自动改写到同级 `temp` 并打印提示。
 
 ---
 
@@ -200,8 +204,10 @@ page N
 ### 4.3 保存
 
 - 文件：`初稿_<文件名>.docx`
-- 位置：`<工作区>/ppt-parse-working/<任务名>/`
+- 位置：`<过程目录>/ppt-parse-working/<任务名>/`
+- 同目录会由脚本自动生成 `初稿_<文件名>_无图.docx`（只移除图片，文字不变）
 - 保留 `_assets/` 素材目录供主代理复核
+- **不得写入 `workspace`**（存在该目录时）
 
 ---
 
@@ -235,8 +241,9 @@ page N
 - 输入文件:<文件路径>
 - 总页数:X 页
 - 嵌入图片总数:X 张
-- 初稿 docx:<工作区>/ppt-parse-working/<任务名>/初稿_<文件名>.docx
-- 素材目录:<工作区>/ppt-parse-working/<任务名>/初稿_<文件名>_assets/
+- 初稿 docx:<过程目录>/ppt-parse-working/<任务名>/初稿_<文件名>.docx
+- 初稿无图版:<过程目录>/ppt-parse-working/<任务名>/初稿_<文件名>_无图.docx
+- 素材目录:<过程目录>/ppt-parse-working/<任务名>/初稿_<文件名>_assets/
 - 核心信息图页数:X 页(有几块级 pic 标记)
 ```
 

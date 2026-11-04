@@ -5,8 +5,13 @@ ppt-pdf-to-docx 核心脚本(v3)
 阶段一:原始素材提取
   - PPTX: 递归提取文字/图片(含 GROUP 组合内)、LibreOffice 渲染整页截图
   - PDF: 转图 + 双引擎文字提取
-输出:docx(带整页截图 + 原始文字)+ _assets/ 目录(截图、提取图片、JSON)
+输出:带图 docx(整页截图 + 原始文字) + 无图 docx(仅移除图片，文字不变)
+      + _assets/ 目录(截图、提取图片、JSON)
 阶段二(视觉核对与逻辑重排)由 agent 基于 _assets/ 中的素材完成。
+
+目录规则(2026-11-04):
+  若沙箱存在名为 workspace 的目录(产物目录)，阶段一的 docx / 素材等过程文件
+  禁止写入 workspace，自动改写到与其同级的 temp(优先 .temp，其次 temp)。
 
 v3 修复 (vs v2):
   FIX-001: images_pdf 中 sha256 hash 变量被 img.size 覆盖导致同页去重失效
@@ -24,6 +29,58 @@ v3 修复 (vs v2):
 import argparse, os, sys, shutil, subprocess, hashlib, tempfile, re, glob, json
 import importlib
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# 0. 输出目录规则(workspace / temp)
+# ---------------------------------------------------------------------------
+WORKSPACE_DIR_NAME = "workspace"
+
+
+def find_workspace_dir():
+    """检测沙箱中名为 workspace 的目录(产物目录)。找不到返回 None。
+
+    检查顺序:当前目录本身、当前目录下、HOME 本身、HOME 下、/workspace。
+    """
+    cwd = Path.cwd()
+    home = Path.home()
+    candidates = [cwd, cwd / WORKSPACE_DIR_NAME, home, home / WORKSPACE_DIR_NAME,
+                  Path("/") / WORKSPACE_DIR_NAME]
+    for p in candidates:
+        try:
+            if p.name == WORKSPACE_DIR_NAME and p.is_dir():
+                return p.resolve()
+            child = p / WORKSPACE_DIR_NAME
+            if p.name != WORKSPACE_DIR_NAME and child.is_dir():
+                return child.resolve()
+        except Exception:
+            continue
+    return None
+
+
+def resolve_temp_root(workspace):
+    """返回与 workspace 同级的 temp 目录(优先 .temp，其次 temp，都没有则创建 .temp)。"""
+    parent = workspace.parent
+    for name in (".temp", "temp"):
+        p = parent / name
+        if p.is_dir():
+            return p.resolve()
+    p = parent / ".temp"
+    p.mkdir(parents=True, exist_ok=True)
+    return p.resolve()
+
+
+def redirect_process_path(path, workspace, temp_root, label):
+    """过程文件若落在 workspace 内，自动改写到同级 temp，并保持相对结构。"""
+    p = Path(path)
+    if workspace is None or temp_root is None:
+        return p
+    try:
+        rel = p.resolve().relative_to(workspace)
+    except Exception:
+        return p
+    target = temp_root / rel
+    print(f"[目录规则] {label} 位于 workspace 内，已改写到: {target}")
+    return target
 
 # ---------------------------------------------------------------------------
 # 1. 环境探测
@@ -695,6 +752,15 @@ def main():
     ap.add_argument("--allow-no-renderer", action="store_true")
     args = ap.parse_args()
 
+    # 目录规则:先确认是否存在 workspace(产物目录)
+    workspace = find_workspace_dir()
+    temp_root = resolve_temp_root(workspace) if workspace else None
+    if workspace:
+        print(f"[目录规则] 检测到 workspace 目录: {workspace}")
+        print(f"[目录规则] 过程文件根目录: {temp_root}(禁止写入 workspace)")
+    else:
+        print("[目录规则] 未检测到 workspace 目录，按当前工作区输出")
+
     ensure_python_deps(auto_install=not args.no_install)
     env = detect_env()
     print("环境检测:", {k: (v if isinstance(v, bool) else (v and '✓'))
@@ -722,6 +788,7 @@ def main():
     out = Path(args.out)
     if not out.is_absolute():
         out = Path.cwd() / out
+    out = redirect_process_path(out, workspace, temp_root, "阶段一 docx")
     out.parent.mkdir(parents=True, exist_ok=True)
 
     # FIX-010: --assets-dir 按源文件独立子目录避免多文件覆盖
@@ -729,7 +796,9 @@ def main():
     for fi in files_info:
         src_stem = Path(fi["name"]).stem
         if args.assets_dir:
-            assets_sub = Path(args.assets_dir) / src_stem
+            assets_base = redirect_process_path(
+                Path(args.assets_dir), workspace, temp_root, "素材目录")
+            assets_sub = assets_base / src_stem
         else:
             assets_sub = out.parent / (out.stem + "_assets") / src_stem
         jp = save_assets(str(assets_sub), fi.pop("_pngs", []), fi.pop("_img_map", {}),
@@ -738,8 +807,21 @@ def main():
             json_path = jp
 
     build_docx(files_info, str(out), total, slide_size=slide_size)
+
+    # 同步生成无图版本(只有图片被移除，文字与图片解析说明保持不变)
+    noimg_path = None
+    try:
+        from strip_images import strip_docx_images
+        noimg_path, removed, verified, diff = strip_docx_images(out)
+        state = "通过" if verified else f"失败({diff})"
+        print(f"   无图版本:{noimg_path}(移除图片 {removed} 个，文字一致性校验:{state})")
+    except Exception as exc:
+        print(f"   [警告] 无图版本生成失败:{exc}")
+
     print(f"\n✅ 阶段一完成:{out}")
     print(f"   合计 {total} 页,来源文件 {len(files_info)} 个")
+    if noimg_path:
+        print(f"   无图版本:{noimg_path}")
     print(f"   素材目录:{out.parent / (out.stem + '_assets')}")
     print(f"   文字 JSON:{json_path}")
 
