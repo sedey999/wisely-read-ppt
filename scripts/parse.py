@@ -146,7 +146,7 @@ def detect_env():
     return env
 
 # ---------------------------------------------------------------------------
-# 1b. Python 依赖自动安装
+# 1b. Python 依赖检查（不安装）
 # ---------------------------------------------------------------------------
 PIP_PKGS = ["python-pptx", "pdfplumber", "pypdfium2", "python-docx", "Pillow"]
 _PIP_MOD = {
@@ -160,34 +160,14 @@ def _import_ok(mod):
     except Exception:
         return False
 
-def _pip_install(pkgs):
-    """尝试安装 pip 包:--user → 普通 → --break-system-packages"""
-    pip_cmds = [
-        [sys.executable, "-m", "pip", "install", "--user"],
-        [sys.executable, "-m", "pip", "install"],
-        [sys.executable, "-m", "pip", "install", "--break-system-packages"],
-    ]
-    for base in pip_cmds:
-        try:
-            r = subprocess.run(base + pkgs,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               timeout=180)
-            if r.returncode == 0:
-                return True
-        except Exception:
-            pass
-    return False
-
-def ensure_python_deps(auto_install=True):
-    if not auto_install:
-        return
+def ensure_python_deps():
+    """只报告缺失依赖，不安装、不修改 Python 环境。"""
     missing = [p for p in PIP_PKGS if not _import_ok(_PIP_MOD[p])]
     if missing:
-        print(f"[安装] 缺失 Python 依赖: {missing}")
-        if _pip_install(missing):
-            print("       -> pip 安装成功")
-        else:
-            print("       -> pip 安装失败,请手动: pip install " + " ".join(missing))
+        print(f"[依赖] 缺失 Python 依赖: {missing}")
+        print("       请由操作员在受控环境中手动安装后重试。")
+        return False
+    return True
 
 # ---------------------------------------------------------------------------
 # 2. 工具函数
@@ -773,7 +753,7 @@ def main():
     ap.add_argument("--dpi", type=int, default=150)
     ap.add_argument("--assets-dir", default=None)
     ap.add_argument("--keep", action="store_true")
-    ap.add_argument("--no-install", action="store_true")
+    ap.add_argument("--no-install", action="store_true", help="兼容旧参数；依赖需预先安装")
     ap.add_argument("--allow-no-renderer", action="store_true")
     args = ap.parse_args()
 
@@ -814,7 +794,7 @@ def main():
         print(f"[错误] --out 指向目录而不是文件：{out}")
         sys.exit(1)
 
-    ensure_python_deps(auto_install=not args.no_install)
+    ensure_python_deps()
     env = detect_env()
     print("环境检测:", {k: (v if isinstance(v, bool) else (v and '✓'))
                           for k, v in env.items()})

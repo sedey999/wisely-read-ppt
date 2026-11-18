@@ -383,7 +383,7 @@ python <skill目录>/scripts/parse.py <input.pptx|input.pdf> [more files...] \
 | `--dpi` | 整页截图 DPI(默认 150。小字/复杂图看不清时,调高到 300 重新渲染) |
 | `--assets-dir` | 素材输出目录(默认:输出文件名_assets) |
 | `--keep` | 保留中间临时文件 |
-| `--no-install` | 不自动安装 Python 依赖 |
+| `--no-install` | 兼容旧参数；依赖需预先安装 |
 
 ### 生成无图版本
 
