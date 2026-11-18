@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 *.pyo
 .git/
+
+local-env.json
+tests/__pycache__/

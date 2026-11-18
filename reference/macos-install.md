@@ -6,7 +6,7 @@
 
 ```bash
 brew install --cask libreoffice
-brew install poppler  # 可选，缺失时 parse.py 自动 fallback 到 pymupdf
+brew install poppler  # 可选，缺失时 parse.py 自动 fallback 到 pypdfium2
 ```
 
 安装后 `soffice` 通常已在 PATH 中。如不在：
@@ -69,7 +69,7 @@ soffice --version
 
 ### 6. poppler（可选）
 
-parse.py 检测不到 `pdftoppm` 时自动 fallback 到 `pymupdf`，功能等价。如需安装：
+parse.py 检测不到 `pdftoppm` 时自动 fallback 到 `pypdfium2`，功能等价。如需安装：
 
 ```bash
 brew install poppler  # 有 brew 时
