@@ -317,7 +317,7 @@ def main(argv=None):
     if not args.no_verify:
         if verified:
             print("   文字一致性校验：通过（与带图版全部文字一致）")
-            print("   图片残留校验：通过（word/media、word/embeddings、thumbnail 均为 0）")
+            print("   图片残留校验：通过（图片类 word/media、thumbnail 均为 0；OLE/音频/视频保留）")
         else:
             print(f"   无图校验：未通过 —— {diff}")
             return 2
