@@ -1,6 +1,6 @@
 ---
 name: wisely-read-ppt
-description: "解析 PPT(.pptx) 或 PDF 文件(或两者同时提供),逐页生成结构化的 docx 解析文档。每页固定包含:整页截图、可编辑文字整理、插图描述(文字中以行内标记形式嵌入)。当用户需要:把演示文稿或 PDF 转成可编辑的逐页 Word 文档、提取 PPT 内容为文字稿、做 PPT/PDF 的图文解析稿、'逐页解析'、'生成解析文件'、'转 docx'、'PPT 解析'、'PDF 解析'时使用。"
+description: "解析 PPT(.pptx) 或 PDF 文件，先生成逐页初稿（整页截图、可编辑文字、待识别图片标记），再由执行代理逐页视觉校准并补全插图描述，最终输出带图/无图 docx。适用于逐页解析、PPT/PDF 转可编辑 Word、生成图文解析稿、提取文字稿等场景。"
 license: Proprietary
 ---
 
@@ -45,7 +45,7 @@ python <skill目录>/scripts/strip_images.py "<终稿>.docx"
 # 输出：<终稿>_无图.docx；脚本会自动校验两版全部文字一致
 ```
 
-- 交付前必须确认两个文件都存在，且 `strip_images.py` 同时输出「文字一致性校验：通过」和「图片残留校验：通过」。无图版包内不得再有 `word/media/`、`word/embeddings/`、`docProps/thumbnail.*`。
+- 交付前必须确认两个文件都存在，且 `strip_images.py` 同时输出「文字一致性校验：通过」和「图片残留校验：通过」。无图版包内不得再有图片类 `word/media/` 文件、图片关系和 `docProps/thumbnail.*`；OLE、音频、视频等非图片内容保留。
 - 阶段一的初稿 docx 也会由 `parse.py` 自动生成无图版本，便于复核；但**交付版仍须对终稿再执行一次**。
 
 ---
@@ -392,8 +392,10 @@ python <skill目录>/scripts/strip_images.py "<带图解析稿>.docx"
 # 默认输出 <原名>_无图.docx
 ```
 
-- 遍历正文、页眉、页脚、脚注、尾注、批注、词汇表等所有 story part，移除图片与 OLE 预览图
-- 清理 `word/media/`、`word/embeddings/`、`docProps/thumbnail.*` 及其关系/内容类型声明
+> `strip_images.py` 是本地 DOCX 后处理工具：只删除图片类内容，不执行文档中的命令、不联网、不读取凭据；OLE、音频、视频等非图片内容及其关系保留。
+
+- 遍历正文、页眉、页脚、脚注、尾注、批注、词汇表等所有 story part，只移除图片和图片预览
+- 只清理图片类 `word/media` 文件、`docProps/thumbnail.*` 及其图片关系/内容类型声明；OLE、音频、视频保留
 - 自动校验两版全部 story part 文字一致，并强制校验图片二进制与图片引用均为零；任一失败返回非 0
 - 可用 `-o <路径>` 指定输出，`--no-verify` 跳过校验
 - `parse.py` 也会对阶段一初稿自动生成无图版本；无图校验失败时 `parse.py` 退出非 0，不交付
@@ -414,7 +416,7 @@ python <skill目录>/scripts/strip_images.py "<带图解析稿>.docx"
 ### 脚本输出
 
 - `输出.docx`:阶段一 docx(含整页截图 + 原始文字)
-- `输出_无图.docx`:真正无图版本(文字与图片解析说明不变，图片二进制清零)
+- `输出_无图.docx`:真正无图版本(文字与图片解析说明不变，图片类二进制清零，OLE/音频/视频保留)
 - `输出_assets/<源文件名>/extracted_text.json`:结构化数据
 - `输出_assets/<源文件名>/page_NN.png`:每页整页截图
 - `输出_assets/<源文件名>/extracted_pics/page_NN_pic_NN.png`:提取的内嵌图片

@@ -5,8 +5,9 @@
 用途：每次交付带图解析稿时，同步产出一份内容完全一致、只是移除了图片的版本。
 保留：全部文字、分页标题、图片标记（如 /[pic 01：简述]/、/[pic NN]*** ... ***/）
       以及图片内容解析说明。
-移除：所有 story part 中的内嵌图片（DrawingML / VML / OLE 预览图），并清理
-      word/media、word/embeddings、docProps/thumbnail 等图片二进制及其关系。
+移除：所有 story part 中的内嵌图片（DrawingML / VML），并清理图片类
+      word/media 文件、docProps/thumbnail 等图片二进制及其关系。
+      不删除 OLE、音频、视频或其他非图片嵌入对象；这些内容及其关系保留。
 
 与旧版的关键区别：
 - 旧版只遍历 document.body，页眉/页脚/脚注/尾注/批注中的图片会残留；
@@ -38,17 +39,12 @@ STORY_RE = re.compile(
     r"^word/(document\.xml|header\d*\.xml|footer\d*\.xml|"
     r"footnotes\.xml|endnotes\.xml|comments\.xml|glossary/document\.xml)$"
 )
-IMAGE_PART_PREFIXES = ("word/media/", "word/embeddings/")
+IMAGE_MEDIA_DIR = "word/media/"
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff",
+                    ".emf", ".wmf", ".svg", ".webp", ".ico"}
 THUMBNAIL_RE = re.compile(r"^docProps/thumbnail\.(jpeg|jpg|png|gif|bmp|tif|tiff)$", re.I)
-IMAGE_REL_TYPES = (
-    "/image",
-    "/oleObject",
-    "/package",
-    "/video",
-    "/audio",
-    "/thumbnail",
-    "/media",
-)
+# 只删除图片关系；OLE/package/audio/video 关系保留。
+IMAGE_REL_TYPES = ("/image", "/thumbnail")
 IMAGE_ELEMENT_NAMES = {"blip", "imagedata", "pic"}
 
 
@@ -58,6 +54,11 @@ def text_version_path(src):
     if src.stem.endswith("_无图"):
         return src
     return src.with_name(f"{src.stem}_无图{src.suffix}")
+
+
+def _is_image_part(name):
+    """只把 word/media 下扩展名属于图片的文件视为图片；音频/视频保留。"""
+    return name.startswith(IMAGE_MEDIA_DIR) and Path(name).suffix.lower() in IMAGE_EXTENSIONS
 
 
 def _local_name(el):
@@ -81,15 +82,14 @@ def _strip_story_xml(data, part_name):
     root = etree.fromstring(data, parser)
     removed = 0
 
-    # 1) 图片 / OLE / 背景图：
-    #    - drawing/pict/background 只在含图片引用时删除，保留图表、SmartArt、文本框；
-    #    - object 是 OLE 对象：本版会清理 word/embeddings，因此必须整体删除，
-    #      否则会留下“对象还在、嵌入包已删”的损坏关系。
-    for tag in ("drawing", "pict", "object", "background"):
+    # 1) 图片 / 背景图：只在含图片引用时删除，保留图表、SmartArt、文本框。
+    #    OLE 对象（w:object）不整体删除；其内部图片预览若为 w:pict 会被单独移除，
+    #    但对象本身和 word/embeddings 保留。
+    for tag in ("drawing", "pict", "background"):
         for el in list(root.iter()):
             if _local_name(el) != tag:
                 continue
-            if tag == "object" or _contains_image(el):
+            if _contains_image(el):
                 parent = el.getparent()
                 if parent is not None:
                     parent.remove(el)
@@ -115,7 +115,7 @@ def _strip_story_xml(data, part_name):
 
 
 def _strip_rels_xml(data):
-    """删除指向图片/OLE/缩略图的关系；返回 (新 XML bytes, 删除关系数)。"""
+    """删除指向图片/缩略图的关系；OLE/音频/视频关系保留。返回 (新 XML bytes, 删除关系数)。"""
     parser = etree.XMLParser(resolve_entities=False, recover=False)
     root = etree.fromstring(data, parser)
     removed = 0
@@ -141,8 +141,8 @@ def _strip_content_types(data):
             continue
         part_name = ov.get("PartName", "")
         if (
-            any(part_name.startswith("/" + prefix) for prefix in IMAGE_PART_PREFIXES)
-            or part_name.startswith("/docProps/thumbnail.")
+            part_name.startswith("/docProps/thumbnail.")
+            or _is_image_part(part_name.lstrip("/"))
         ):
             root.remove(ov)
             removed += 1
@@ -172,8 +172,8 @@ def _collect_story_texts(zf):
 def _has_any_image_reference(zf):
     """检查包内是否还有图片二进制、图片关系或图片 XML 元素。"""
     names = zf.namelist()
-    if any(name.startswith(IMAGE_PART_PREFIXES) for name in names):
-        return True, "仍存在 word/media 或 word/embeddings 图片/对象二进制"
+    if any(_is_image_part(name) for name in names):
+        return True, "仍存在 word/media 图片二进制"
     if any(THUMBNAIL_RE.match(name) for name in names):
         return True, "仍存在 docProps/thumbnail 缩略图"
 
@@ -256,7 +256,7 @@ def strip_docx_images(src, dst=None, verify=True):
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as out:
             for info in infos:
                 name = info.filename
-                if name.startswith(IMAGE_PART_PREFIXES) or THUMBNAIL_RE.match(name):
+                if _is_image_part(name) or THUMBNAIL_RE.match(name):
                     continue
                 data = modified.get(name, original[name])
                 # 保留原条目的压缩方式/时间戳，避免无意义 diff。
